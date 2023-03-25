@@ -1,0 +1,15 @@
+\section{Introduction} \label{sec:intro}
+Robust variable selection problem has  gain much attention currently as it enables the identification of certain features and maintains resistance to outliers. A general framework is to consider a penalized regression problem with some robust loss function applied. The statistical property and computational feasibility of such problem highly depends on the loss itself and the penalty term. Usually, the loss function encodes the robustness and the penalty term enables the variable selection. 
+
+
+With the goal of designing a robust estimator with high efficiency and maintaining optimal breakdown point, \citet{wang2013robust} proposes the exponential square loss function regularized by an adaptive LASSO penalty term, named ESL-LASSO method. 
+In this report, we provide a complete introduction of the ESL-LASSO method with the focus on its computation. The code that implements the method and conduct empirical experiments is documented in \url{https://github.com/zuhengxu/qua4}.
+
+
+In general this is a theory-oriented methodology, of which the design---specifically the procedure of choosing tuning parameters---is completely motivated by achieving the oracle property \citep{fan2001variable} and an optimal  asymptotic breakdown point. Although mathematically appealing,  the authors do not take careful treatments in the computational aspect, making the proposed method less practical and not reliable in many scenarios. Later in \cref{sec:computation}, we will discuss the limitation of the proposed method and point out potential challenges that occur in implementation. 
+
+
+
+To resolve these problems, we present a simple iterative optimization scheme to solve the ESL-LASSO objective, as well as introducing a new tuning parameter selection procedure, yielding a significant improvement over the original ESL-LASSO method. 
+The detailed presentation of our methods is provided in \cref{sec:computation}.
+Finally, we compare the modified ESL-LASSO method with PENSE-LASSO \citep{freue2019robust} on three synthetic examples. The complete simulation results is included in \cref{sec:sim}.

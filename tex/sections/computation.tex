@@ -1,0 +1,204 @@
+\section{Computation}\label{sec:computation} Given the non-convexity of the
+loss function, the non-smooth $\ell_1$
+penalty and two tunning constants, obtaining an efficient computation strategy that maintains the ideal statistical
+properties is not trivial. The goal of this section is to provide an extensive discussion on the original
+computational scheme, including the numerical algorithm and the way of making a reasonable choice on the tuning
+parameters. Also, we present a few alternatives based on the our discussion on the original methods and provide a
+detailed justification.
+
+
+\subsection{Proximal gradient method} 
+
+As the objective function \cref{eq:esl_lasso} is composited with both a
+non-convex (ESL loss) and a non-smooth ($\ell_1$ regularizer) term, solving the optimization globally is difficult.
+In the paper, for the feasibility of computation, the authors consider a global quadratic approximation to the loss
+function at the initial estimator $\tilde{\beta}$ (MM-estimator as suggested by the author) , namely the actual
+target function is as follows, 
+\[\label{eq:quadrelax} \tilde{\ell}_n(\beta) = \frac{1}{2} (\beta - \tilde{\beta})^T
+\nabla^2 \ell_n^*(\tilde{\beta}) (\beta - \tilde{\beta}) + \tau_n \sum_{j = 1}^d \frac{|\beta_j|}{|\tilde{\beta_j}|}. \] 
+Recall that $\ell^*_n(\beta) = 1 -\frac{1}{n}\sum_{i = 1}^ n \exp \left\{ -(y_i-
+x_i^T\beta)^2/\gamma\right\}$. Then there is a plenty of efficient algorithms can be used to solve this type of
+problem, such as coordinate descent method \citep{wu2008coordinate}, the alternating direction method of multipliers
+(ADMM) \citep{ouyang2013stochastic} and etc, among which \citep{wang2013robust} pick the coordinate descent
+algorithm.
+
+Though this $\ell_2$ relaxation could enable a solvable optimization, there are some concerns with this idea. The
+first minor issue is that the optima of \cref{eq:esl_lasso} do not coincide with \cref{eq:quadrelax}, meaning that we
+have no guarantees on the solution of this relaxed problem. Second, the global minimum of \cref{eq:quadrelax} may not
+exist. In fact, due to the non-convexity of $\ell_n^*(\beta)$, $\nabla^2 \ell_n^*(\tilde \beta)$ is not guaranteed to
+be semi-positive definite, in which case \cref{eq:quadrelax} is not even lower bounded. \cref{fig:lstar} visualizes
+the $\ell_n^*(\beta)$ under a $1$-dimensional simulated dataset under different value of $\gamma$, from which we can
+clearly see the shape of $\ell_n^*$ depends on the dataset as well as the choice of $\gamma$.
+
+
+\begin{figure}[t!] 
+    \centering 
+    \includegraphics[width = 0.8\linewidth]{figures/lstar.png}
+     \caption{Figure of $\ell_n^*$ on a synthetic dataset.} \label{fig:lstar} 
+\end{figure}
+
+
+Further, assuming the optimum of \cref{eq:quadrelax} is well defined, there is a fundamental flaw of this global
+convex relaxation strategy---$\ell_2$ loss is not a robust loss function. To limit the influence of outliers, the
+loss function of a robust regression is usually bounded above (meaning that it has to be non-convex), then the the
+outliers cannot bias the estimates arbitrarily. A good example is the proposed ESL loss function $\phi_\gamma$.
+However, replacing the ESL loss with a quadratic function completely ruins the robustness and could lead to a
+non-sense estimates when the dataset is contaminated. The only situation where such quadratic approximation is
+acceptable is that when the initial estimator $\tilde{\beta}$ smartly picked such that it lies in a local convex
+region around the true optimum $x^*$, i.e., 
+\[ 
+    \tilde \beta \in \{ \mcB_\delta(x^*): \delta >0 \text{ and }\ell_n(\beta) \text{ is convex inside } \mcB_\delta(x^*)\}. 
+\] 
+Then there is some hope that the true solution can be
+recovered by optimizing on this quadratic surrogate objective.
+
+Therefore, to address these issues, we propose a new algorithm---\emph{proximal gradient descent method} (proximal
+GD)---of solving \cref{eq:esl_lasso}, which is a simple iterative algorithm. Before the presentation of the detailed
+implementation of proximal GD, we provide a brief introduction to the general proximal gradient method
+\citep{parikh2014proximal}. Proximal gradient method is commonly applied to the optimization problem with non-smooth
+regularizer, e.g., LASSO, elastic net, compressed sensing. Considering the general optimization problem as follows,
+\[ \min_{x \in \reals^d} f(x) + g(x), \] where $f$ is differentiable; and $g$ is convex but not necessarily
+differentiable. In the ESL-LASSO problem setting, $f$ is the ESL empirical loss function $ \ell_n^*$ and $g$ is the
+adaptive lasso penalty. The iteration of proximal gradient method is given as follows, \[\label{eq:proxiter} x_{k+1}
+&= \prox{\alpha_k, g}{x_k - \alpha_k \nabla f(x_k)}, \quad k\in \nats. \] where $\alpha_k > 0 $ is the step size at
+each iteration and $\prox{\alpha_k, g}{\cdot}$ is the proximal operator. Specifically, let $x_k' = x_k - \alpha_k
+\nabla f(x_k)$, \cref{eq:proxiter} can be written into: \[ x_{k+1} &= \prox{\alpha_k,g}{x_k'} = \argmin_{z\in
+\reals^d} \frac{1}{2\alpha_k} \|z - x_k'\|_2^2 + g(z). \] Interestingly, the proximal gradient method can be
+interpreted as a particular case of the \emph{majorization-minimization algorithm} (MM algorithm), a wide class of
+algorithms that are popular for non-convex optimization. The key of the MM algorithm is by minimizing a tight convex
+upper bound of the original objective function and decreasing the object value after each iteration. The most well
+known example of the MM algorithm in statistical literature is the EM algorithm. Suppose $f$ is $L$-smooth---if $f$
+is twicely continuous differentiable, $\nabla^2 f \preceq LI, L> 0 $. Then an upper bound of $(f+ g) (x)$ can be
+given by \[ f(y) + \nabla f(y)^T(x- y ) + \frac{1}{2 \alpha} \| x- y\|_2^2 +g(x), \quad \alpha \in (0, L^{-1} ], \]
+which is convex on $x$ for a fixed $y$ and touches the original function $f + g$ as $x = y$. Substituting $y = x_k,
+\alpha = \alpha_k$ and minimizing over $x$ precisely gives the proximal GD iteration \cref{eq:proxiter}, as long as
+the step size $\alpha_k$ is carefully chosen.
+
+Therefore, applying the scheme of proximal gradient method to the ESL-LASSO problem yields the following numerical
+iteration: \[\label{eq:eslproxiter} \beta_{k+1} \gets \text{Prox}_{\alpha_k, \mathcal{P}}(\beta_k - \alpha_k \nabla
+\ell_n^*(\beta_k)), \quad \alpha_k \leq \left(\frac{2}{\gamma} \sigma_1\left(\frac{1}{n} \sum_{i=1}^n x_i x_i^T
+\right)\right)^{-1}, \] where $ \text{Prox}_{\alpha_k, \mathcal{P}}(\cdot)$ is the proximal operator and
+$\mathcal{P}(\beta) = \sum_{j = 1}^d \frac{\tau_{nj}}{|\tilde{\beta_j}|} |\beta_j|$; and $\sigma_1(M )$ denotes the
+maximal singular value of matrix $ M$. The following proposition provides a simple upper bound on the Lipschitz
+constant of $\ell_n^*$. \bnprop For all $\beta \in \reals^d$, $\nabla^2 \ell_n^* (\beta) \preceq \frac{2}{\gamma}
+\sigma_1\left(\frac{1}{n} \sum_{i=1}^n x_i x_i^T \right)$. \enprop \bprf
+
+Write $ \ell_{(i)}^*(\beta) = 1- \exp \left\{ -(y_i- x_i^T\beta)^2/\gamma\right\}$ and hence $\ell_n^* =
+\frac{1}{n}\sum_{i=1}^n \ell_{(i)}^*$. We can examine the gradient and Hessian of $\ell_{(i)}^*$ as follows: \[
+\begin{aligned} \nabla^2 \ell_i^*(\beta) & = \frac{2}{\gamma} \left[ \exp\left(-\frac{2 r_i(\beta)^2}{\gamma} \right)
+\left(1- \frac{2 r_i(\beta)^2}{\gamma} \right)\right] (x_i x_i^T) \\ & \preceq \frac{2}{\gamma} (x_i x_i^T),
+\end{aligned} \] where $r_i(\beta)\defined x_i^T\beta - y_i$. This completes the proof. \eprf
+
+
+\begin{algorithm}[t!] \caption{Proximal gradient descent} \label{alg:proxGD} \begin{algorithmic}
+\Procedure{ProxGD}{$\beta_0$, $\gamma$ ,$(\alpha_k)_{k\in\nats}$, $(x_i)_{i=1}^n$} \State $\text{Compute Lipschitz
+constant } L \gets \left(\frac{2}{\gamma} \sigma_1\left(\frac{1}{n} \sum_{i=1}^n x_i x_i^T \right)\right)^{-1}$
+\For{$k=0, 1, \dots, K-1$} \State $\alpha_k \gets \min \left(\alpha_k ,L\right)$ \State $\beta_{k+1} \gets
+\text{Prox}_{\alpha_k, \mathcal{P}}(\beta_k - \alpha_k \nabla \ell_n^*(\beta_k))$ (\cref{eq:ista}) \EndFor \State
+\Return $\beta_K$ \EndProcedure \end{algorithmic} \end{algorithm}
+
+This majorization-minimization nature of \cref{eq:eslproxiter} ensures producing iterates that converges to a local
+optimum \citep{hunter2004tutorial}, but we have to mention that there is no theoretical guarantee that it will solve
+the optimization globally. Another major reason for us to choose the proximal GD is that it is simple for
+implementation, where the proximal operator has close form solution. For $\ell_1$ penalty, the proximal operator can
+be written as the soft-thresholding operator: Let $\beta^+_k := \beta_k - \alpha_k \nabla \ell_n^*(\beta_k) $,
+$\lambda_j = \frac{\tau_{nj}}{|\tilde{\beta_j}|}$. Then for $i=1, \ldots, d $, \[ \label{eq:ista}
+\left[\text{Prox}_{\alpha_k, \mathcal{P}} (\beta^+_k) \right]_j= \left[S_{\lambda_j\alpha_k
+}(\beta^+_k)\right]_{j}=\left\{\begin{array}{ll} \left[ \beta^+_k\right]_j-\lambda_j\alpha_k & \text { if } \left[
+\beta^+_k\right]_j>\lambda_j \alpha_k \\ 0 & \text { if }-\lambda_j\alpha_k \leq \left[ \beta^+_k\right]_j \leq
+\lambda_j\alpha_k \\ \left[ \beta^+_k\right]_j+\lambda_j\alpha_k & \text { if } \left[ \beta^+_k\right]_j<-\lambda_j
+\alpha_k \end{array}\right. . \] The detailed implementation of this algorithm is presented in \cref{alg:proxGD}.
+
+
+\subsection{Tuning parameter selection: the choice of $\gamma$}
+
+To implement the methodology properly, it is
+necessary to make sensible choice of the tunning constants, including $\tau_{nj}$ in the adaptive LASSO penalty and
+$\gamma$ in the loss function. In the original paper, selection procedures are motivated by asymptotic theory. In
+this section, we discuss the selection methods proposed by the author and provide our alternatives that improve the
+performance of ESL-LASSO. Since the choice of $\tau$ is specified in \cref{sec:pnty}, in this section, we pay
+attention on the selection of $\gamma$.
+
+As we briefly mentioned in \cref{sec:pnty}, the choice of $\gamma$ determines the level of robustness. In fact, based on our empirical finding, the quality of the ESL-LASSO estimator is very sensitive to the value of $\gamma$. Also, as shown in \cref{fig:lstar}, we see that the optimization landscape may be influenced by the value of $\gamma$. Those information hints an important fact that the selection method of $\gamma$ should be designed carefully. 
+
+
+
+The paper under discussion proposes a data-dependent procedure that  learns the value of $\gamma$, which includes three steps:
+\benum
+\item[Step 1: ] Identifying the pseudo outliers based on large residual error. Let $r_i(\beta) = x_i^T \beta - y_i, i = 1, 2, \dots, n $. The pseudo outlier set $D_m$ is selected by
+\[\label{eq:pseudo_outlier}
+D_m = \{(x_i, y_i): |r_i(\tilde\beta )| \geq 2.5 S_n| \}, \quad S_n = 1.4826 \times \text{med}_i | r_i(\hat \beta - \text{med}_j(r_j(\tilde \beta))   )| .
+\]  
+Here $m$ denotes the number of data points of $D_m$ and we denote the cleaned dataset as $D_{n-m}$.
+
+\item[Step 2:] Selecting $\gamma$ that minimizes the asymptotic variance of $\tilde \beta$ in the range that ensures an asymptotic breakdown point at $1/2$, which uses $D_{n-m}$. Specifically, $\gamma$ is obtained by minimizing the determinant of the asymptotic covariance matrix $\hat{V}(\gamma)=\left\{\hat{I}_{1}\left(\hat{\beta}_{n}\right)\right\}^{-1}
+\tilde{\Sigma}_{2}\left\{\tilde{I}_{1}\left(\tilde{\beta}_{n}\right)\right\}^{-1}$ within the range $G$, where 
+\[ \label{eq:G}
+    G =
+\left\{\gamma: \frac{2m}{n} + \frac{2}{n}\sum_{ i =m+ 1}^n \phi_\gamma(r_i(\tilde \beta_n))\leq 1\right\}, \] 
+and 
+ \[
+\begin{aligned} 
+    \tilde{I}_{1}\left(\tilde{\beta}_{n}\right) 
+    &=\frac{2}{\gamma}\left\{\frac{1}{n} \sum_{i=1}^{n} \exp \left(-r_{i}^{2}\left(\tilde{\beta}_{n}\right) / \gamma\right)\left(\frac{2r_{i}^{2}\left(\tilde{\beta}_{n}\right)}{\gamma}-1\right)\right\}\left(\frac{1}{n} \sum_{i=1}^{n} {x}_{i} {x}_{i}^{T}\right) \\ \tilde{\Sigma}_{2} 
+    &=\operatorname{cov}\left\{\exp
+\left(-r_{1}^{2}\left(\tilde{\beta}_{n}\right) / \gamma\right) \frac{2
+r_{1}\left(\tilde{\beta}_{n}\right)}{\gamma} {x}_{1}, \cdots, \exp
+\left(-r_{n}^{2}\left(\tilde{\beta}_{n}\right) / \gamma\right) \frac{2
+r_{n}\left(\tilde{\beta}_{n}\right)}{\gamma} {x}_{n}\right\} 
+\end{aligned}.
+\]
+
+\item[Step 3:] Obtaining  $\hat \beta$ by optimizing \cref{eq:esl_lasso}. And set $\tilde \beta = \hat \beta$.
+\eenum
+Note that both Step 1 and 2 depend on the current value of the estimates $\tilde \beta$. Thus to make sure the value of $\hat \beta$ and $\gamma$ converges, the author suggest iterating Steps 1-3 until convergence. In the initial round, the author suggest using the MM-estimator.
+The key step above is the Step 2, which is completely originated from the asymptotic results. By \citet[Theorem 2.]{wang2013robust}, $\gamma \in G$ is necessary for the optimal asymptotic breakdown point of the ESL-LASSO estimator; and by minimizing the asymptotically variance, we expect to find the value of $\gamma$ leading to a faster convergence rate of the eventual estimator. This procedure sounds intuitively reasonable but is actually not reliable from both practical and statistical perspective.
+
+In practice, there is basically no efficient way of solving the constrained optimization problem described in Step 2 as there is no structure of the feasible set $G$ and the target function is a determinant of a complicated matrix. As a result, the authors consider using grid search to identify the set $G$ and the solution of $\gamma$.  Although it sounds like brutal force, provided that $\gamma$ is a univariate variable, it is acceptable.  This procedure is illustrated in \cref{fig:gamma}---we simply plot $\xi(\gamma)\defined \frac{2m}{n} + \frac{2}{n}\sum_{ i =m+ 1}^n \phi_\gamma(r_i(\tilde \beta_n))$ and $\log \det (\hat V (\gamma))$  against $\gamma$; and then search the optimal choice of $\gamma$ along these two curves.    The tricky part for the implementation is to determine the searching range, which is obviously problem specific. In practice, one  may want to try a few different ranges to see whether the result is satisfying. Another interesting problem we find in the empirical experiment is that repeating Step 1-3 does not leads to a convergence. In all our simulation settings (introduced in detail in next section), iterating Step 1-3 will just send $\gamma$ to an unreasonable value and hence leads to a useless estimator. This contradicts to the claim in the paper that the whole process converges quickly and only requires two repetitions. 
+
+
+
+\begin{figure}[t!]
+    \centering
+    \includegraphics[width = 0.8\linewidth]{figures/gamma_plot.png}
+    \caption{(Left) $\xi(\gamma)$ against $\gamma$; (Right) $\log \det (\hat V (\gamma)) $   against $\gamma$. The curves are based on the synthetic dataset with $n = 800$, $d = 8$ and true coefficients $\beta  =(1, 1.5, 2, 1, 0,0,0,0)^T$. $x_i\distiid \distNorm(0, \Omega)$, $[\Omega]_{i,j} = 0.5^{|i-j|}$. } \label{fig:gamma}
+\end{figure}
+
+
+
+However, this selection scheme on $\gamma$ represents a fundamental misunderstanding to the robust regression problem. A general rule of designing a robust estimator is to balance the robustness and
+the efficiency of the estimator. In other words, we need to ensure a sensible bias-variance trade-off. The major
+problem of focusing on choosing $\gamma$ that leads to minimal asymptotic variance is that it overlooks the bias and
+could result in an non-robust estimator. We find out in the simulation that this procedure works fine without the
+presence of outliers but is not reliable when the dataset is contaminated with outliers, which aligns with our
+intuition above.
+Specifically, in our empirical findings, Step 2 tends to search for an abnormally large $\gamma$, yielding a vacuous estimates $\hat \beta_n = (0,0, \dots ,0)^T $. 
+ 
+To resolve these issues, we propose a new procedure of selecting a proper $\gamma$, which is generally simpler and more reliable comparing to the original procedure.   
+We focus on the intuition that the $\gamma$ serves as a scale parameter that controls the importance of the residual error.
+Therefore, a naive idea is to use the estimated residual variance. However, considering the presence of outliers, estimating the residual variance with the raw dataset may lead to a huge bias. Thus, a better choice is to combine with the Step 1 that discards the pseudo outliers from  the raw dataset and estimate the residual variance with ``cleaned'' dataset $D_{n - m}$, of which is updates of $\gamma$ is given by 
+\[
+    \gamma \gets \frac{1}{n-m} \sum_{i = m+1}^n ( y_i - x_i \beta )^2.
+\]
+Note that similar to the original method, this updates also depend on the current estimates of $\beta$. Thus, we may also want to iterate between the $\gamma$ selection and solving \cref{eq:esl_lasso} with proximal GD as proposed in the paper. The detailed implementation for the complete procedure of  ESL-LASSO estimation is then provided in \cref{alg:esl_lasso}. 
+
+\begin{algorithm}[t!] 
+    \caption{ESL-LASSO estimation} \label{alg:esl_lasso} 
+\begin{algorithmic}
+   \Procedure{ESL-LASSO}{$\tilde \beta$, $\gamma$ ,$(\alpha_k)_{k\in\nats}$, $(x_i)_{i=1}^n$} 
+   \State $\tilde \beta \gets \text{MM-estimator}$
+   \State $ k = 0$
+   \For{ $k=0, 1, \dots, K-1$}
+\State Identifying the pseudo outliers $D_m$ (\cref{eq:pseudo_outlier})
+\State $\gamma \gets \frac{1}{n-m} \sum_{i = m+1}^n ( y_i - x_i \beta )^2$
+\State $\hat \beta \gets \text{ ProxGD}(\tilde \beta$, $\gamma$ ,$(\alpha_k)_{k\in\nats}$, $(x_i)_{i=1}^n) $ (\cref{alg:proxGD})
+\State $\tilde{ \beta }\gets \hat \beta, \quad k \gets k+1$ 
+\EndFor
+    \State \Return $\hat \beta$ 
+   \EndProcedure 
+\end{algorithmic}
+\end{algorithm}
+
+
+
+

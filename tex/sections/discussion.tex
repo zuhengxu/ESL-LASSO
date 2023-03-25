@@ -1,0 +1,17 @@
+\section{Discussion} \label{sec:dis}
+
+This report provides a comprehensive discussion of the exponential squared loss regression employed with an adaptive LASSO regularizer, with a particular focus on its computational strategy. We point out potential issues in the optimization treatment to the ESL-LASSO objective and propose an efficient algorithm that is able to at least solve the objective function locally, while the original scheme can produce ill-defined results.
+We also modified the original tunning constant selection method, making the whole procedure easier to implement and makes the ESL-LASSO more reliable. Also, we are unable to recover the simulation results included in the paper, where our empirical results for the original ESL-LASSO methods is abnormally bad. We suspect that the authors tune the search range of $\gamma$ for the simulation experiments. 
+
+
+The original paper provides a descent theoretical treatment to the variable
+selection process in a robust regression setting and attempts to design the
+computation scheme based on these asymptotic results. However, their approach
+indicates some fundamental misunderstanding to the robust regression problem.
+In general, blindly aiming for the oracle property or optimal efficiency of a
+robust estimator is not appropriate as there is usually a trade-off between the
+robustness and efficiency. A practical way is to minimize the asymptotic
+variance under a bound on the bias \citep[p. ~68]{maronna2019robust}. 
+
+Another important element for robust regression problem is the initial value. Provided that most robust regression problem involves non-convex optimization, the choice of the initial value can significantly affects the final results. \citet{wang2013robust} chooses the MM-estimator as both the initial value and the pilot estimator used in the adaptive LASSO penalty, which prevents the application of this method to a high-dimensional setting where the MM-estimator could return some zero coefficients. To further polish the ESL-LASSO methods, we might want to include some data-driven methods to obtain a better initial value.
+
